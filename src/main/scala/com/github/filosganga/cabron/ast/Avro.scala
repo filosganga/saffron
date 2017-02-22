@@ -48,7 +48,7 @@ case class AvroBytes(value: Array[Byte]) extends Avro(BytesSchema)
 
 case class AvroFixed(value: Array[Byte]) extends Avro(FixedSchema(value.length))
 
-case class AvroArray(values: immutable.Iterable[Avro], elementSchema: Schema) extends Avro(ArraySchema(elementSchema))
+case class AvroArray(elementSchema: Schema, values: immutable.Iterable[Avro]) extends Avro(ArraySchema(elementSchema))
 
 case class AvroRecord(fields: immutable.Seq[(String, Avro)]) extends Avro(RecordSchema(fields.map{case (k,v) => k->v.schema}))
 
@@ -61,21 +61,21 @@ object Avro {
 
   val Null = AvroNull
 
-  def fromRecord(fields: (String,Avro)*): Avro = AvroRecord(immutable.Seq(fields:_*))
+  def record(fields: (String,Avro)*): Avro = AvroRecord(immutable.Seq(fields:_*))
 
-  def fromString(value: String): Avro = AvroString(value)
+  def string(value: String): Avro = AvroString(value)
 
-  def fromFixed(value: Array[Byte]): Avro = AvroFixed(value)
+  def fixed(value: Array[Byte]): Avro = AvroFixed(value)
 
-  def fromBytes(value: Array[Byte]): Avro = AvroBytes(value)
+  def bytes(value: Array[Byte]): Avro = AvroBytes(value)
 
-  def fromInt(value: Int): Avro = AvroInt(value)
+  def int(value: Int): Avro = AvroInt(value)
 
-  def fromLong(value: Long): Avro = AvroLong(value)
+  def long(value: Long): Avro = AvroLong(value)
 
-  def fromBoolean(value: Boolean): Avro = AvroBoolean(value)
+  def boolean(value: Boolean): Avro = AvroBoolean(value)
 
-  def array(): Avro = ???
+  def array(elementSchema: Schema, values: Avro*): Avro = AvroArray(elementSchema, immutable.Seq(values:_*))
 
   def binary(avro: Avro, buffer: ByteBuffer): Unit = avro match {
     case AvroNull =>
@@ -107,7 +107,7 @@ object Avro {
       // It is not tail recursive but it is fine for now since the object nesting deep level should not be an issue
       values.map(_._2).foreach(binary(_, buffer))
 
-    case AvroArray(values, _) =>
+    case AvroArray(_, _) =>
       // TBC
       throw new UnsupportedOperationException("TBC")
 
