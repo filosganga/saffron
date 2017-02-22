@@ -7,50 +7,87 @@ import com.ovoenergy.arvo.Varint
 import com.ovoenergy.arvo.ast.Schema._
 
 import scala.collection.immutable
-trait Schema
+trait Schema {
+  type ValueType
+}
 
 object Schema {
 
-  case object StringSchema extends Schema
+  case object StringSchema extends Schema {
+    override type ValueType = String
+  }
 
-  case object BooleanSchema extends Schema
+  case object BooleanSchema extends Schema {
+    override type ValueType = Boolean
+  }
 
-  case object BytesSchema extends Schema
+  case object BytesSchema extends Schema {
+    override type ValueType = immutable.Iterable[Byte]
+  }
 
-  case object IntSchema extends Schema
+  case object IntSchema extends Schema {
+    override type ValueType = Int
+  }
 
-  case object LongSchema extends Schema
+  case object FloatSchema extends Schema {
+    override type ValueType = Float
+  }
 
-  case object NullSchema extends Schema
+  case object DoubleSchema extends Schema {
+    override type ValueType = Double
+  }
 
-  case class FixedSchema(length: Long) extends Schema
+  case object LongSchema extends Schema {
+    override type ValueType = Long
+  }
 
-  case class RecordSchema(fieldsSchemas: immutable.Seq[(String, Schema)]) extends Schema
+  case object NullSchema extends Schema {
+    override type ValueType = Unit
+  }
 
-  case class ArraySchema(elementSchema: Schema) extends Schema
+  case class FixedSchema(length: Long) extends Schema {
+    override type ValueType = immutable.Iterable[Byte]
+  }
+
+  // TODO Quite complex to model
+  case class RecordSchema(fieldsSchemas: immutable.Seq[(String, Schema)]) extends Schema {
+    override type ValueType = immutable.Seq[(String, Avro[Schema])]
+  }
+
+  case class ArraySchema[T <: Schema](elementSchema: T) extends Schema {
+    override type ValueType = immutable.Iterable[Avro[T]]
+  }
 
 
 }
 
-sealed abstract class Avro(val schema: Schema)
+sealed abstract class Avro[+T <: Schema](val schema: T) {
+  def value: schema.ValueType
+}
 
-case class AvroString(value: String) extends Avro(StringSchema)
+case class AvroString(value: String) extends Avro[StringSchema.type](StringSchema)
 
-case class AvroInt(value: Int) extends Avro(IntSchema)
+case class AvroInt(value: Int) extends Avro[IntSchema.type](IntSchema)
 
-case class AvroLong(value: Long) extends Avro(LongSchema)
+case class AvroLong(value: Long) extends Avro[LongSchema.type](LongSchema)
 
-case class AvroBoolean(value: Boolean) extends Avro(BooleanSchema)
+case class AvroFloat(value: Float) extends Avro[FloatSchema.type](FloatSchema)
 
-case class AvroBytes(value: Array[Byte]) extends Avro(BytesSchema)
+case class AvroDouble(value: Double) extends Avro[DoubleSchema.type](DoubleSchema)
 
-case class AvroFixed(value: Array[Byte]) extends Avro(FixedSchema(value.length))
+case class AvroBoolean(value: Boolean) extends Avro[BooleanSchema.type](BooleanSchema)
 
-case class AvroArray(elementSchema: Schema, values: immutable.Iterable[Avro]) extends Avro(ArraySchema(elementSchema))
+case class AvroBytes(value: immutable.Iterable[Byte]) extends Avro[BytesSchema.type](BytesSchema)
 
-case class AvroRecord(fields: immutable.Seq[(String, Avro)]) extends Avro(RecordSchema(fields.map{case (k,v) => k->v.schema}))
+case class AvroFixed(value: immutable.Iterable[Byte]) extends Avro[FixedSchema](FixedSchema(value.size))
 
-case object AvroNull extends Avro(NullSchema)
+case class AvroArray[T <: Schema](elementSchema: T, value: immutable.Iterable[Avro[T]]) extends Avro[ArraySchema[T]](ArraySchema(elementSchema))
+
+case class AvroRecord(value: immutable.Seq[(String, Avro[Schema])]) extends Avro[RecordSchema](RecordSchema(value.map{case (k,v) => k->v.schema}))
+
+case object AvroNull extends Avro[NullSchema.type](NullSchema){
+  override val value: Unit = Unit
+}
 
 
 object Avro {
@@ -59,23 +96,31 @@ object Avro {
 
   val Null = AvroNull
 
-  def record(fields: (String,Avro)*): Avro = AvroRecord(immutable.Seq(fields:_*))
+  def record(fields: (String, Avro[Schema])*): Avro[RecordSchema] = AvroRecord(immutable.Seq(fields:_*))
 
-  def string(value: String): Avro = AvroString(value)
+  def string(value: String): Avro[StringSchema.type] = AvroString(value)
 
-  def fixed(value: Array[Byte]): Avro = AvroFixed(value)
+  def fixed(value: Array[Byte]): Avro[FixedSchema] = fixed(value.toList)
 
-  def bytes(value: Array[Byte]): Avro = AvroBytes(value)
+  def fixed(value: immutable.Iterable[Byte]): Avro[FixedSchema] = AvroFixed(value)
 
-  def int(value: Int): Avro = AvroInt(value)
+  def bytes(value: Array[Byte]): Avro[BytesSchema.type] = bytes(value.toList)
 
-  def long(value: Long): Avro = AvroLong(value)
+  def bytes(value: immutable.Iterable[Byte]): Avro[BytesSchema.type] = AvroBytes(value)
 
-  def boolean(value: Boolean): Avro = AvroBoolean(value)
+  def int(value: Int): Avro[IntSchema.type] = AvroInt(value)
 
-  def array(elementSchema: Schema, values: Avro*): Avro = AvroArray(elementSchema, immutable.Seq(values:_*))
+  def long(value: Long): Avro[LongSchema.type] = AvroLong(value)
 
-  def binary(avro: Avro, buffer: ByteBuffer): Unit = avro match {
+  def float(value: Float): Avro[FloatSchema.type] = AvroFloat(value)
+
+  def double(value: Double): Avro[DoubleSchema.type] = AvroDouble(value)
+
+  def boolean(value: Boolean): Avro[BooleanSchema.type] = AvroBoolean(value)
+
+  def array[T <: Schema](elementSchema: T, values: Avro[T]*): Avro[ArraySchema[T]] = AvroArray(elementSchema, immutable.Seq(values:_*))
+
+  def binary(avro: Avro[Schema], buffer: ByteBuffer): Unit = avro match {
     case AvroNull =>
 
     case AvroInt(value) =>
@@ -95,23 +140,23 @@ object Avro {
       buffer.put(value.getBytes(UTF_8))
 
     case AvroBytes(value) =>
-      Varint.writeSignedLong(value.length, buffer)
-      buffer.put(value)
+      Varint.writeSignedLong(value.size, buffer)
+      buffer.put(value.toArray)
 
     case AvroFixed(value) =>
-      buffer.put(value)
+      buffer.put(value.toArray)
 
     case AvroRecord(values) =>
       // It is not tail recursive but it is fine for now since the object nesting deep level should not be an issue
       values.map(_._2).foreach(binary(_, buffer))
 
-    case AvroArray(_, _) =>
+    case _ =>
       // TBC
       throw new UnsupportedOperationException("TBC")
 
   }
 
-  def binary(avro: Avro): Array[Byte] = {
+  def binary(avro: Avro[Schema]): Array[Byte] = {
     val buffer = ByteBuffer.allocate(1024)
     binary(avro, buffer)
     buffer.flip()
