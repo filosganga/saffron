@@ -1,12 +1,10 @@
-package com.github.filosganga.cabron
+package com.ovoenergy.arvo
 
 import java.io.ByteArrayOutputStream
 
-import com.github.filosganga.cabron.ast.{Avro, AvroNull, AvroRecord}
-import org.apache.avro.generic.{GenericDatumWriter, GenericRecordBuilder}
+import com.ovoenergy.arvo.ast.Avro
 import org.apache.avro.io.{Encoder, EncoderFactory}
-import org.apache.avro.util.Utf8
-import org.scalatest.prop.{Checkers, PropertyChecks}
+import org.scalatest.prop.PropertyChecks
 import org.scalatest.{Matchers, WordSpec}
 
 class AvroTest extends WordSpec with Matchers with PropertyChecks {
