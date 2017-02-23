@@ -58,4 +58,10 @@ object SchemaResolverInstances {
   implicit object BytesToStringToResolver extends SchemaResolver[BytesSchema.type, StringSchema.type] {
     override def resolve(from: Avro[BytesSchema.type], to: StringSchema.type): Avro[StringSchema.type] = AvroString(new String(from.value.toArray, StandardCharsets.UTF_8))
   }
+
+  implicit def arrayResolver[F <: Schema, T <: Schema](implicit elementSchemaResolver: SchemaResolver[F,T]): SchemaResolver[ArraySchema[F], ArraySchema[T]] = new SchemaResolver[ArraySchema[F], ArraySchema[T]] {
+    override def resolve(from: Avro[ArraySchema[F]], to: ArraySchema[T]): Avro[ArraySchema[T]] = {
+      AvroArray(to.elementSchema, from.value.map(elementSchemaResolver.resolve(_, to.elementSchema)))
+    }
+  }
 }
