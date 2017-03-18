@@ -79,7 +79,7 @@ case object AvroNull extends Avro(NullSchema)
 
 object Avro {
 
-  val Null = AvroNull
+  val Null: Avro = AvroNull
 
   def record(fullName: String, fields: (String, Avro)*): Avro = AvroRecord(fullName, immutable.Seq(fields: _*))
 

@@ -33,6 +33,7 @@ trait CoreGenerators {
     value <- arbitrary[String]
   } yield AvroString(value))
 
+  // TODO generate arbitrary element
   implicit lazy val arbAvroArray: Arbitrary[AvroArray] = Arbitrary(for {
     xs <- listOf(arbitrary[AvroInt])
   } yield AvroArray(IntSchema, xs))
