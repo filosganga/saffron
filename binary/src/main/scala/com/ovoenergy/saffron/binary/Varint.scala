@@ -1,4 +1,4 @@
-package com.ovoenergy.arvo
+package com.ovoenergy.saffron.binary
 
 import java.nio.ByteBuffer
 
