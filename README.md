@@ -1,4 +1,4 @@
-Arvo - Native Avro serialization in Scala
+Saffron - Native Avro serialization in Scala
 ======================
 
 ## Motivation
