@@ -26,56 +26,47 @@ class BinarySpec extends WordSpec with Matchers with PropertyChecks with CoreGen
       }
 
       "serialize boolean as single byte" in forAll { boolean: Boolean =>
-
         val expectedBytes = writeWithJavaAvro(_.writeBoolean(boolean))
         encode(Avro.boolean(boolean)).deep shouldBe expectedBytes.deep
       }
 
       "serialize Int as zig-zag varint" in forAll { int: Int =>
-
         val expectedBytes = writeWithJavaAvro(_.writeInt(int))
         encode(Avro.int(int)).deep shouldBe expectedBytes.deep
       }
 
       "serialize Float" in forAll { float: Float =>
-
         val expectedBytes = writeWithJavaAvro(_.writeFloat(float))
         encode(Avro.float(float)).deep shouldBe expectedBytes.deep
       }
 
       "serialize Double" in forAll { double: Double =>
-
         val expectedBytes = writeWithJavaAvro(_.writeDouble(double))
         encode(Avro.double(double)).deep shouldBe expectedBytes.deep
       }
 
       "serialize Long as zig-zag varint" in forAll { long: Long =>
-
         val expectedBytes = writeWithJavaAvro(_.writeLong(long))
         encode(Avro.long(long)).deep shouldBe expectedBytes.deep
       }
 
       "serialize String length as zig-zag varint followed by UTF-8 bytes" in forAll { string: String =>
-
         val expectedBytes = writeWithJavaAvro(_.writeString(string))
         encode(Avro.string(string)).deep shouldBe expectedBytes.deep
       }
 
       "serialize bytes as zig-zag varint length followed by the bytes" in forAll { bytes: Array[Byte] =>
-
         val expectedBytes = writeWithJavaAvro(_.writeBytes(bytes))
         encode(Avro.bytes(bytes.toList)).deep shouldBe expectedBytes.deep
       }
 
       "serialize fixed as fixed length byte array" in forAll { bytes: Array[Byte] =>
-
         val expectedBytes = writeWithJavaAvro(_.writeFixed(bytes))
         encode(Avro.fixed(bytes.toList)).deep shouldBe expectedBytes.deep
       }
 
       "be able serialize an array " in forAll { strings: Array[String] =>
-
-        val expectedBytes = writeWithJavaAvro{e =>
+        val expectedBytes = writeWithJavaAvro { e =>
           e.writeArrayStart()
           e.setItemCount(strings.size)
           strings.foreach(e.writeString)
@@ -146,7 +137,8 @@ class BinarySpec extends WordSpec with Matchers with PropertyChecks with CoreGen
 
       "be able to parse a map" in forAll() { map: Map[String, Int] =>
         val bytes = writeWithJavaAvro { e =>
-          val writer = new GenericDatumWriter[JMap[String, Int]](SchemaBuilder.map().values(SchemaBuilder.builder().intType()))
+          val writer =
+            new GenericDatumWriter[JMap[String, Int]](SchemaBuilder.map().values(SchemaBuilder.builder().intType()))
           writer.write(map.asJava, e)
         }
         decode(MapSchema(IntSchema), bytes) shouldBe Right(AvroMap(IntSchema, map.mapValues(AvroInt.apply)))
@@ -163,32 +155,35 @@ class BinarySpec extends WordSpec with Matchers with PropertyChecks with CoreGen
 
       "be able to parse a record" in forAll() { (name: String, fields: List[(String, AvroString)]) =>
         val bytes = writeWithJavaAvro { e =>
-          fields.foreach { case (_, value) =>
-            e.writeString(value.value)
+          fields.foreach {
+            case (_, value) =>
+              e.writeString(value.value)
           }
         }
-        decode(RecordSchema(name, fields.map(x => x._1 -> x._2.schema)), bytes) shouldBe Right(AvroRecord(name, fields))
+        decode(RecordSchema(name, fields.map(x => x._1 -> x._2.schema)), bytes) shouldBe Right(
+          AvroRecord(name, fields)
+        )
       }
     }
 
     "round-trip" should {
-      "handle AvroInt" in forAll(){ avro: AvroInt =>
+      "handle AvroInt" in forAll() { avro: AvroInt =>
         decode(avro.schema, encode(avro)) shouldBe Right(avro)
       }
 
-      "handle AvroFloat" in forAll(){ avro: AvroFloat =>
+      "handle AvroFloat" in forAll() { avro: AvroFloat =>
         decode(avro.schema, encode(avro)) shouldBe Right(avro)
       }
 
-      "handle AvroDouble" in forAll(){ avro: AvroDouble =>
+      "handle AvroDouble" in forAll() { avro: AvroDouble =>
         decode(avro.schema, encode(avro)) shouldBe Right(avro)
       }
 
-      "handle AvroLong" in forAll(){ avro: AvroLong =>
+      "handle AvroLong" in forAll() { avro: AvroLong =>
         decode(avro.schema, encode(avro)) shouldBe Right(avro)
       }
 
-      "handle any Avro" in forAll(){ avro: Avro =>
+      "handle any Avro" in forAll() { avro: Avro =>
         decode(avro.schema, encode(avro)) shouldBe Right(avro)
       }
     }

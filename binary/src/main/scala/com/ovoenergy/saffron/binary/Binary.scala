@@ -18,7 +18,6 @@ object Binary {
 
   def encode(avro: Avro, buffer: ByteBuffer): Unit = avro match {
     case AvroNull =>
-
     case AvroInt(value) =>
       Varint.writeSignedInt(value, buffer)
 
@@ -56,7 +55,7 @@ object Binary {
     case AvroArray(_, values) =>
       Varint.writeSignedLong(values.size, buffer)
 
-      if(values.nonEmpty) {
+      if (values.nonEmpty) {
         // TODO It is not tail recursive
         values.foreach(encode)
         Varint.writeSignedLong(0, buffer)
@@ -65,11 +64,12 @@ object Binary {
     case AvroMap(_, entries) =>
       Varint.writeSignedLong(entries.size, buffer)
 
-      if(entries.nonEmpty) {
+      if (entries.nonEmpty) {
         // TODO It is not tail recursive
-        entries.foreach { case (k, v) =>
-          writeString(k, buffer)
-          encode(v, buffer)
+        entries.foreach {
+          case (k, v) =>
+            writeString(k, buffer)
+            encode(v, buffer)
         }
         Varint.writeSignedLong(0, buffer)
       }
@@ -89,7 +89,6 @@ object Binary {
     data
   }
 
-
   def decode(schema: Schema, bytes: Array[Byte]): Either[ParsingFailure, Avro] =
     decode(schema, ByteBuffer.wrap(bytes))
 
@@ -101,22 +100,26 @@ object Binary {
       Right(AvroInt(Varint.readSignedInt(buffer)))
 
     case FloatSchema =>
-      Try(buffer.order(ByteOrder.LITTLE_ENDIAN)
-        .asFloatBuffer().get())
-        .fold(error => Left(ParsingFailure(error.getMessage)), ok => Right(AvroFloat(ok)))
+      Try(
+        buffer
+          .order(ByteOrder.LITTLE_ENDIAN)
+          .asFloatBuffer()
+          .get()
+      ).fold(error => Left(ParsingFailure(error.getMessage)), ok => Right(AvroFloat(ok)))
 
     case DoubleSchema =>
-      Try(buffer.order(ByteOrder.LITTLE_ENDIAN)
-        .asDoubleBuffer().get())
-        .fold(error => Left(ParsingFailure(error.getMessage)), ok => Right(AvroDouble(ok)))
+      Try(
+        buffer
+          .order(ByteOrder.LITTLE_ENDIAN)
+          .asDoubleBuffer()
+          .get()
+      ).fold(error => Left(ParsingFailure(error.getMessage)), ok => Right(AvroDouble(ok)))
 
     case LongSchema =>
       Right(AvroLong(Varint.readSignedLong(buffer)))
 
     case BooleanSchema =>
-      Try(buffer.get())
-        .toEither
-        .left
+      Try(buffer.get()).toEither.left
         .map {
           case NonFatal(e) => ParsingFailure(e.getMessage)
         }
@@ -165,9 +168,7 @@ object Binary {
         .map(e => ParsingFailure(e.getMessage))
 
     case UnionSchema(types) =>
-      Try(Varint.readSignedLong(buffer))
-        .toEither
-        .left
+      Try(Varint.readSignedLong(buffer)).toEither.left
         .map {
           case NonFatal(e) => ParsingFailure(e.getMessage)
         }
@@ -187,19 +188,16 @@ object Binary {
         }
 
     case ArraySchema(elementSchema) =>
-
       // TODO Add multiple blocks array support
       // TODO Handle negative length
 
       val numberOfElement = Varint.readSignedInt(buffer)
-      (0 until numberOfElement)
-          .toVector
-          .map(_ => decode(elementSchema, buffer))
-          .sequenceU
-          .map(AvroArray(elementSchema, _))
+      (0 until numberOfElement).toVector
+        .map(_ => decode(elementSchema, buffer))
+        .sequenceU
+        .map(AvroArray(elementSchema, _))
 
     case MapSchema(valueSchema) =>
-
       val mapBuilder = Map.newBuilder[String, Avro]
 
       var numberOfElements = Varint.readSignedLong(buffer)
@@ -218,8 +216,9 @@ object Binary {
 
     case RecordSchema(fullName, fields) =>
       fields
-        .map { case (fieldName, fieldSchema) =>
-          decode(fieldSchema, buffer).map(fieldName -> _)
+        .map {
+          case (fieldName, fieldSchema) =>
+            decode(fieldSchema, buffer).map(fieldName -> _)
         }
         .view
         .takeWhile(_.isRight)
@@ -230,7 +229,6 @@ object Binary {
           } yield xs :+ x
         }
         .map(fields => Avro.record(fullName, fields: _*))
-
 
     case _ => Left(ParsingFailure(s"Schema $schema is not supported"))
   }

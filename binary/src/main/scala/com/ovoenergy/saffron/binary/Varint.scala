@@ -4,27 +4,25 @@ import java.nio.ByteBuffer
 
 object Varint {
 
-  def writeSignedLong(x: Long, dest: ByteBuffer): Unit = {
+  def writeSignedLong(x: Long, dest: ByteBuffer): Unit =
     // sign to even/odd mapping: http://code.google.com/apis/protocolbuffers/docs/encoding.html#types
     writeUnsignedLong((x << 1) ^ (x >> 63), dest)
-  }
 
   def writeUnsignedLong(v: Long, dest: ByteBuffer): Unit = {
     var x = v
-    while((x & 0xFFFFFFFFFFFFFF80L) != 0L) {
+    while ((x & 0xFFFFFFFFFFFFFF80L) != 0L) {
       dest put ((x & 0x7F) | 0x80).toByte
       x >>>= 7
     }
     dest put (x & 0x7F).toByte
   }
 
-  def writeSignedInt(x: Int, dest: ByteBuffer): Unit = {
+  def writeSignedInt(x: Int, dest: ByteBuffer): Unit =
     writeUnsignedInt((x << 1) ^ (x >> 31), dest)
-  }
 
   def writeUnsignedInt(v: Int, dest: ByteBuffer): Unit = {
     var x = v
-    while((x & 0xFFFFF80) != 0L) {
+    while ((x & 0xFFFFF80) != 0L) {
       dest put ((x & 0x7F) | 0x80).toByte
       x >>>= 7
     }
@@ -48,10 +46,9 @@ object Varint {
       v |= (read & 0x7F) << i
       i += 7
       require(i <= 35)
-    } while((read & 0x80) != 0)
+    } while ((read & 0x80) != 0)
     v
   }
-
 
   def readSignedLong(src: ByteBuffer): Long = {
     val unsigned = readUnsignedLong(src)
@@ -70,7 +67,7 @@ object Varint {
       v |= (read & 0x7F) << i
       i += 7
       require(i <= 70)
-    } while((read & 0x80L) != 0)
+    } while ((read & 0x80L) != 0)
     v
   }
 }

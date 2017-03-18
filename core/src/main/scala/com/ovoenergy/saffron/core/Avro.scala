@@ -42,7 +42,6 @@ object Schema {
 
   case class ArraySchema(elementSchema: Schema) extends Schema
 
-
 }
 
 sealed abstract class Avro(val schema: Schema)
@@ -73,10 +72,10 @@ case class AvroArray(elementSchema: Schema, values: immutable.Seq[Avro]) extends
 // TODO Add type constraint: all the values should have the same schema.
 case class AvroMap(valueSchema: Schema, values: Map[String, Avro]) extends Avro(MapSchema(valueSchema))
 
-case class AvroRecord(fullName: String, fields: immutable.Seq[(String, Avro)]) extends Avro(RecordSchema(fullName, fields.map { case (k, v) => k -> v.schema }))
+case class AvroRecord(fullName: String, fields: immutable.Seq[(String, Avro)])
+    extends Avro(RecordSchema(fullName, fields.map { case (k, v) => k -> v.schema }))
 
 case object AvroNull extends Avro(NullSchema)
-
 
 object Avro {
 

@@ -33,21 +33,25 @@ trait CoreGenerators {
     value <- arbitrary[String]
   } yield AvroString(value))
 
-  implicit lazy val arbAvroArray: Arbitrary[AvroArray] = Arbitrary(
-    for {
-      xs <- listOf(arbitrary[AvroInt])
-    } yield AvroArray(IntSchema, xs)
-  )
+  implicit lazy val arbAvroArray: Arbitrary[AvroArray] = Arbitrary(for {
+    xs <- listOf(arbitrary[AvroInt])
+  } yield AvroArray(IntSchema, xs))
 
-  implicit lazy val arbAvroRecord: Arbitrary[AvroRecord] = Arbitrary(
-    for {
-      name <- arbitrary[String]
-      xs <- listOf(zip(arbitrary[String], lzy(arbitrary[Avro])))
-    } yield AvroRecord(name, xs)
-  )
+  implicit lazy val arbAvroRecord: Arbitrary[AvroRecord] = Arbitrary(for {
+    name <- arbitrary[String]
+    xs <- listOf(zip(arbitrary[String], lzy(arbitrary[Avro])))
+  } yield AvroRecord(name, xs))
 
   implicit lazy val arbAvro: Arbitrary[Avro] = Arbitrary(
-    oneOf(arbitrary[AvroNull.type], arbitrary[AvroInt], arbitrary[AvroFloat], arbitrary[AvroDouble], arbitrary[AvroLong], arbitrary[AvroString], arbitrary[AvroArray])
+    oneOf(
+      arbitrary[AvroNull.type],
+      arbitrary[AvroInt],
+      arbitrary[AvroFloat],
+      arbitrary[AvroDouble],
+      arbitrary[AvroLong],
+      arbitrary[AvroString],
+      arbitrary[AvroArray]
+    )
   )
 
 }
