@@ -7,10 +7,9 @@ import java.nio.charset.StandardCharsets.UTF_8
 import com.ovoenergy.saffron.core.Schema._
 import com.ovoenergy.saffron.core._
 
-import scala.util.{Failure, Try}
+import scala.util.Try
 import scala.collection.immutable
 import scala.util.control.NonFatal
-import cats._
 import cats.syntax.all._
 import cats.instances.all._
 
@@ -194,7 +193,7 @@ object Binary {
       val numberOfElement = Varint.readSignedInt(buffer)
       (0 until numberOfElement).toVector
         .map(_ => decode(elementSchema, buffer))
-        .sequenceU
+        .sequence
         .map(AvroArray(elementSchema, _))
 
     case MapSchema(valueSchema) =>
