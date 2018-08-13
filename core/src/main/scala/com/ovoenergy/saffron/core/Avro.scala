@@ -36,79 +36,127 @@ object Schema {
 
   case class FixedSchema(length: Long) extends Schema
 
-  case class RecordSchema(fullName: String, fieldsSchemas: immutable.Seq[(String, Schema)]) extends NamedSchema
+  case class RecordSchema(fullName: String, fieldsSchemas: Map[String, Schema]) extends NamedSchema
 
-  case class MapSchema(valueSchema: Schema) extends Schema
+  case class MapSchema[T <: Schema](valueSchema: T) extends Schema
 
-  case class ArraySchema(elementSchema: Schema) extends Schema
+  case class ArraySchema[T <: Schema](elementSchema: T) extends Schema
+
+  case class EnumSchema(fullName: String, symbols: immutable.IndexedSeq[String]) extends NamedSchema
 
 }
 
-sealed abstract class Avro(val schema: Schema)
+sealed abstract class Avro[T <: Schema] {
+  def schema: T
+}
 
-case class AvroString(value: String) extends Avro(StringSchema)
+case object AvroNull extends Avro[NullSchema.type] {
+  override val schema: NullSchema.type = NullSchema
+}
 
-case class AvroInt(value: Int) extends Avro(IntSchema)
+case class AvroInt(value: Int) extends Avro[IntSchema.type] {
+  override val schema: IntSchema.type = IntSchema
+}
 
-case class AvroFloat(value: Float) extends Avro(FloatSchema)
+case class AvroFloat(value: Float) extends Avro[FloatSchema.type] {
+  override val schema: FloatSchema.type = FloatSchema
+}
 
-case class AvroDouble(value: Double) extends Avro(DoubleSchema)
+case class AvroDouble(value: Double) extends Avro[DoubleSchema.type] {
+  override val schema: DoubleSchema.type = DoubleSchema
+}
 
-case class AvroLong(value: Long) extends Avro(LongSchema)
+case class AvroLong(value: Long) extends Avro[LongSchema.type] {
+  override val schema: LongSchema.type = LongSchema
+}
 
-case class AvroBoolean(value: Boolean) extends Avro(BooleanSchema)
+case class AvroBoolean(value: Boolean) extends Avro[BooleanSchema.type] {
+  override val schema: BooleanSchema.type = BooleanSchema
+}
 
-case class AvroBytes(value: immutable.Seq[Byte]) extends Avro(BytesSchema)
+case class AvroBytes(value: immutable.Seq[Byte]) extends Avro[BytesSchema.type] {
+  override val schema: BytesSchema.type = BytesSchema
+}
 
-// TODO It need some trick to make the compiler working for us and guarantee the consistency.
-// It should be modelled similar to a coproduct in shapeless.
-case class AvroUnion(types: immutable.IndexedSeq[Schema], typeIndex: Int, value: Avro) extends Avro(UnionSchema(types))
+case class AvroFixed(value: immutable.Seq[Byte], length: Long) extends Avro[FixedSchema] {
+  override def schema: FixedSchema = FixedSchema(length)
+}
 
-case class AvroFixed(length: Long, value: immutable.Seq[Byte]) extends Avro(FixedSchema(length))
+case class AvroString(value: String) extends Avro[StringSchema.type] {
+  override val schema: StringSchema.type = StringSchema
+}
 
-// TODO Add type constraint: all the elements should have the same schema.
-case class AvroArray(elementSchema: Schema, values: immutable.Seq[Avro]) extends Avro(ArraySchema(elementSchema))
 
-// TODO Add type constraint: all the values should have the same schema.
-case class AvroMap(valueSchema: Schema, values: Map[String, Avro]) extends Avro(MapSchema(valueSchema))
+// TODO It needs some trick to make the compiler working for us and guarantee the consistency.
+case class AvroUnion[T <: Schema](value: Avro[T], typeIndex: Int, types: immutable.IndexedSeq[Schema]) extends Avro[UnionSchema] {
+  override val schema: UnionSchema = UnionSchema(types)
+}
 
-case class AvroRecord(fullName: String, fields: immutable.Seq[(String, Avro)])
-    extends Avro(RecordSchema(fullName, fields.map { case (k, v) => k -> v.schema }))
+case class AvroArray[T <: Schema](values: immutable.Seq[Avro[T]], elementSchema: T) extends Avro[ArraySchema[T]] {
+  override val schema: ArraySchema[T] = ArraySchema(elementSchema)
+}
 
-case object AvroNull extends Avro(NullSchema)
+case class AvroMap[T <: Schema](values: Map[String, Avro[T]], valueSchema: T) extends Avro[MapSchema[T]] {
+  override val schema: MapSchema[T] = MapSchema(valueSchema)
+}
+
+case class AvroRecord(name: String, fields: Map[String, Avro[Schema]]) extends Avro[RecordSchema] {
+  override val schema: RecordSchema = RecordSchema(name, fields.mapValues(_.schema))
+}
+
+// TODO make sure symbolIndex < schema.types.length at compile time
+case class AvroEnum(name: String, symbolIndex: Int, symbols: immutable.IndexedSeq[String]) extends Avro[EnumSchema] {
+  override val schema: EnumSchema = EnumSchema(name, symbols)
+  val symbol: String = schema.symbols(symbolIndex)
+}
 
 object Avro {
 
-  val Null: Avro = AvroNull
+  val Null: Avro[NullSchema.type] = AvroNull
 
-  def record(fullName: String, fields: (String, Avro)*): Avro = AvroRecord(fullName, immutable.Seq(fields: _*))
+  def int(value: Int): Avro[IntSchema.type] =
+    AvroInt(value)
 
-  def string(value: String): Avro = AvroString(value)
+  def float(value: Float): Avro[FloatSchema.type] =
+    AvroFloat(value)
 
-  def fixed(value: immutable.Seq[Byte]): Avro = fixed(value.length, value)
+  def double(value: Double): Avro[DoubleSchema.type] =
+    AvroDouble(value)
 
-  def fixed(length: Long, value: immutable.Seq[Byte]): Avro = AvroFixed(length, value)
+  def long(value: Long): Avro[LongSchema.type] =
+    AvroLong(value)
 
-  def bytes(value: immutable.Seq[Byte]): Avro = AvroBytes(value)
+  def boolean(value: Boolean): Avro[BooleanSchema.type] =
+    AvroBoolean(value)
 
-  def int(value: Int): Avro = AvroInt(value)
+  def fixed(value: immutable.Seq[Byte]): Avro[FixedSchema] =
+    fixed(value, value.length.toLong)
 
-  def float(value: Float): Avro = AvroFloat(value)
+  def fixed(value: immutable.Seq[Byte], length: Long): Avro[FixedSchema] =
+    AvroFixed(value, length)
 
-  def double(value: Double): Avro = AvroDouble(value)
+  def bytes(value: immutable.Seq[Byte]): Avro[BytesSchema.type] = AvroBytes(value)
 
-  def long(value: Long): Avro = AvroLong(value)
+  def array[T <: Schema](elementSchema: T)(values: Avro[T]*): Avro[ArraySchema[T]] =
+    AvroArray[T](values.toVector, elementSchema)
 
-  def boolean(value: Boolean): Avro = AvroBoolean(value)
-
-  def array(elementSchema: Schema, values: Avro*): Avro = AvroArray(elementSchema, immutable.Seq(values: _*))
-
-  def map(valueSchema: Schema, values: (String, Avro)*): Avro = AvroMap(valueSchema, values.toMap)
+  def map[T <: Schema](valueSchema: T)(values: (String, Avro[T])*): Avro[MapSchema[T]] =
+    AvroMap[T](values.toMap, valueSchema)
 
   // TODO How can we check at compile type that value.schema is included in types?
-  def union(types: immutable.IndexedSeq[Schema], value: Avro): Avro = {
+  def union[T <: Schema](value: Avro[T], types: Schema*): Avro[UnionSchema] = {
     val schemaIndex = types.indexOf(value.schema)
     require(schemaIndex != -1, "The value schema should be included in the Union types")
-    AvroUnion(types, schemaIndex, value)
+    AvroUnion[T](value, schemaIndex, types.toVector)
   }
+
+  def record(fullName: String, fields: (String, Avro[Schema])*): Avro[RecordSchema] =
+    AvroRecord(fullName, fields.toMap)
+
+  def string(value: String): Avro[StringSchema.type] = AvroString(value)
+
+  def enum(fullName: String, symbol: String, symbols: String*): Avro[EnumSchema] =
+    AvroEnum(fullName, symbols.indexOf(symbol), symbols.toVector)
+
+
 }

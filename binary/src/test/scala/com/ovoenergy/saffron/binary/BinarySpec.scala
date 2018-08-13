@@ -4,8 +4,7 @@ import java.io.ByteArrayOutputStream
 import java.util.{Iterator => JIterator, Map => JMap}
 
 import com.ovoenergy.saffron.core.Schema._
-import com.ovoenergy.saffron.core._
-import com.ovoenergy.saffron.core.testkit.CoreGenerators
+import com.ovoenergy.saffron.core.{CoreGenerators, _}
 import org.apache.avro.SchemaBuilder
 import org.apache.avro.generic.GenericDatumWriter
 import org.apache.avro.io.{Encoder, EncoderFactory}
@@ -65,10 +64,10 @@ class BinarySpec extends WordSpec with Matchers with PropertyChecks with CoreGen
         encode(Avro.fixed(bytes.toList)).deep shouldBe expectedBytes.deep
       }
 
-      "be able serialize an array " in forAll { strings: Array[String] =>
+      "be able serialize an array " in forAll { strings: Seq[String] =>
         val expectedBytes = writeWithJavaAvro { e =>
           e.writeArrayStart()
-          e.setItemCount(strings.size)
+          e.setItemCount(strings.length)
           strings.foreach(e.writeString)
           e.writeArrayEnd()
         }
@@ -111,7 +110,7 @@ class BinarySpec extends WordSpec with Matchers with PropertyChecks with CoreGen
 
       "be able to parse a fixed number of bytes" in forAll() { value: List[Byte] =>
         val bytes = writeWithJavaAvro(_.writeFixed(value.toArray))
-        decode(FixedSchema(value.length), bytes) shouldBe Right(AvroFixed(value.size, value))
+        decode(FixedSchema(value.length), bytes) shouldBe Right(AvroFixed(value, value.size))
       }
 
       "be able to parse an array of bytes" in forAll() { value: Array[Byte] =>
@@ -132,7 +131,7 @@ class BinarySpec extends WordSpec with Matchers with PropertyChecks with CoreGen
           e.writeArrayEnd()
         }
 
-        decode(ArraySchema(StringSchema), bytes) shouldBe Right(AvroArray(StringSchema, strings.map(AvroString.apply)))
+        decode(ArraySchema(StringSchema), bytes) shouldBe Right(Avro.array(StringSchema, strings.map(AvroString.apply):_*))
       }
 
       "be able to parse a map" in forAll() { map: Map[String, Int] =>
@@ -141,7 +140,7 @@ class BinarySpec extends WordSpec with Matchers with PropertyChecks with CoreGen
             new GenericDatumWriter[JMap[String, Int]](SchemaBuilder.map().values(SchemaBuilder.builder().intType()))
           writer.write(map.asJava, e)
         }
-        decode(MapSchema(IntSchema), bytes) shouldBe Right(AvroMap(IntSchema, map.mapValues(AvroInt.apply)))
+        decode(MapSchema(IntSchema), bytes) shouldBe Right(Avro.map(IntSchema, map.mapValues(AvroInt.apply).toList:_*))
       }
 
       "be able to parse a union type" in forAll() { string: String =>
@@ -150,10 +149,10 @@ class BinarySpec extends WordSpec with Matchers with PropertyChecks with CoreGen
           e.writeIndex(1)
           e.writeString(string)
         }
-        decode(schema, bytes) shouldBe Right(AvroString(string))
+        decode(schema, bytes) shouldBe Right(Avro.union(AvroString(string), IntSchema, StringSchema))
       }
 
-      "be able to parse a record" in forAll() { (name: String, fields: List[(String, AvroString)]) =>
+      "be able to parse a record" in forAll() { (name: String, fields: Map[String, AvroString]) =>
         val bytes = writeWithJavaAvro { e =>
           fields.foreach {
             case (_, value) =>
@@ -161,7 +160,7 @@ class BinarySpec extends WordSpec with Matchers with PropertyChecks with CoreGen
           }
         }
         decode(RecordSchema(name, fields.map(x => x._1 -> x._2.schema)), bytes) shouldBe Right(
-          AvroRecord(name, fields)
+          AvroRecord(name, fields.mapValues(_.asInstanceOf[Avro[Schema]]))
         )
       }
     }
@@ -183,7 +182,7 @@ class BinarySpec extends WordSpec with Matchers with PropertyChecks with CoreGen
         decode(avro.schema, encode(avro)) shouldBe Right(avro)
       }
 
-      "handle any Avro" in forAll() { avro: Avro =>
+      "handle any Avro" in forAll() { avro: Avro[Schema] =>
         decode(avro.schema, encode(avro)) shouldBe Right(avro)
       }
     }

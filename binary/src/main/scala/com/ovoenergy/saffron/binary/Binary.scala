@@ -7,15 +7,16 @@ import java.nio.charset.StandardCharsets.UTF_8
 import com.ovoenergy.saffron.core.Schema._
 import com.ovoenergy.saffron.core._
 
-import scala.util.Try
+import scala.util.{Failure, Try}
 import scala.collection.immutable
 import scala.util.control.NonFatal
+
 import cats.syntax.all._
 import cats.instances.all._
 
 object Binary {
 
-  def encode(avro: Avro, buffer: ByteBuffer): Unit = avro match {
+  def encode(avro: Avro[_], buffer: ByteBuffer): Unit = avro match {
     case AvroNull =>
     case AvroInt(value) =>
       Varint.writeSignedInt(value, buffer)
@@ -40,27 +41,27 @@ object Binary {
     case AvroString(value) =>
       writeString(value, buffer)
 
-    case AvroFixed(_, value) =>
+    case AvroFixed(value, _) =>
       value.foreach(buffer.put)
 
     case AvroBytes(value) =>
       Varint.writeSignedInt(value.length, buffer)
       value.foreach(buffer.put)
 
-    case AvroUnion(types, typeIndex, value) =>
+    case AvroUnion(value, typeIndex, _) =>
       Varint.writeSignedLong(typeIndex, buffer)
       encode(value, buffer)
 
-    case AvroArray(_, values) =>
+    case AvroArray(values, _) =>
       Varint.writeSignedLong(values.size, buffer)
 
       if (values.nonEmpty) {
         // TODO It is not tail recursive
-        values.foreach(encode)
+        values.foreach(encode(_, buffer))
         Varint.writeSignedLong(0, buffer)
       }
 
-    case AvroMap(_, entries) =>
+    case AvroMap(entries, _) =>
       Varint.writeSignedLong(entries.size, buffer)
 
       if (entries.nonEmpty) {
@@ -73,13 +74,16 @@ object Binary {
         Varint.writeSignedLong(0, buffer)
       }
 
-    case AvroRecord(_, values) =>
+    case AvroRecord(_, fields) =>
       // TODO It is not tail recursive
-      values.map(_._2).foreach(encode(_, buffer))
+      fields.values.foreach(encode(_, buffer))
+
+    case AvroEnum(name, symbolIndex, symbols) =>
+      Varint.writeSignedInt(symbolIndex, buffer)
 
   }
 
-  def encode(avro: Avro): Array[Byte] = {
+  def encode(avro: Avro[_]): Array[Byte] = {
     val buffer = ByteBuffer.allocate(1024)
     encode(avro, buffer)
     buffer.flip()
@@ -88,15 +92,15 @@ object Binary {
     data
   }
 
-  def decode(schema: Schema, bytes: Array[Byte]): Either[ParsingFailure, Avro] =
+  def decode[T <: Schema](schema: T, bytes: Array[Byte]): Either[ParsingFailure, Avro[T]] =
     decode(schema, ByteBuffer.wrap(bytes))
 
-  def decode(schema: Schema, buffer: ByteBuffer): Either[ParsingFailure, Avro] = schema match {
+  def decode[T <: Schema](schema: T, buffer: ByteBuffer): Either[ParsingFailure, Avro[T]] = schema match {
     case NullSchema =>
-      Right(AvroNull)
+      Right(AvroNull.asInstanceOf[Avro[T]])
 
     case IntSchema =>
-      Right(AvroInt(Varint.readSignedInt(buffer)))
+      Right(AvroInt(Varint.readSignedInt(buffer)).asInstanceOf[Avro[T]])
 
     case FloatSchema =>
       Try(
@@ -104,7 +108,7 @@ object Binary {
           .order(ByteOrder.LITTLE_ENDIAN)
           .asFloatBuffer()
           .get()
-      ).fold(error => Left(ParsingFailure(error.getMessage)), ok => Right(AvroFloat(ok)))
+      ).fold(error => Left(ParsingFailure(error.getMessage)), ok => Right(AvroFloat(ok).asInstanceOf[Avro[T]]))
 
     case DoubleSchema =>
       Try(
@@ -112,10 +116,10 @@ object Binary {
           .order(ByteOrder.LITTLE_ENDIAN)
           .asDoubleBuffer()
           .get()
-      ).fold(error => Left(ParsingFailure(error.getMessage)), ok => Right(AvroDouble(ok)))
+      ).fold(error => Left(ParsingFailure(error.getMessage)), ok => Right(AvroDouble(ok).asInstanceOf[Avro[T]]))
 
     case LongSchema =>
-      Right(AvroLong(Varint.readSignedLong(buffer)))
+      Right(AvroLong(Varint.readSignedLong(buffer)).asInstanceOf[Avro[T]])
 
     case BooleanSchema =>
       Try(buffer.get()).toEither.left
@@ -124,8 +128,8 @@ object Binary {
         }
         .right
         .flatMap {
-          case 0 => Right(AvroBoolean(false))
-          case 1 => Right(AvroBoolean(true))
+          case 0 => Right(AvroBoolean(false).asInstanceOf[Avro[T]])
+          case 1 => Right(AvroBoolean(true).asInstanceOf[Avro[T]])
           case x => Left(ParsingFailure(s"The byte $x is not a valid boolean"))
         }
 
@@ -133,7 +137,7 @@ object Binary {
       val bytesLength = Varint.readSignedInt(buffer)
       val stringBytes = Array.ofDim[Byte](bytesLength)
       buffer.get(stringBytes)
-      Right(AvroString(new String(stringBytes, StandardCharsets.UTF_8)))
+      Right(AvroString(new String(stringBytes, StandardCharsets.UTF_8)).asInstanceOf[Avro[T]])
 
     case FixedSchema(length) =>
       if (length > Int.MaxValue) {
@@ -144,7 +148,7 @@ object Binary {
           buffer.get(content)
           content
         }.map(xs => immutable.Seq(xs: _*))
-          .map(AvroFixed(length, _))
+          .map(Avro.fixed(_, length).asInstanceOf[Avro[T]])
           .toEither
           .left
           .map(e => ParsingFailure(e.getMessage))
@@ -162,6 +166,7 @@ object Binary {
       } yield content)
         .map(xs => immutable.Seq(xs: _*))
         .map(AvroBytes.apply)
+        .map(_.asInstanceOf[Avro[T]])
         .toEither
         .left
         .map(e => ParsingFailure(e.getMessage))
@@ -177,13 +182,10 @@ object Binary {
         }
         .flatMap { index =>
           if (types.isDefinedAt(index)) {
-            Right(types(index))
+            decode(types(index), buffer).map(AvroUnion(_, index, types).asInstanceOf[Avro[T]])
           } else {
             Left(ParsingFailure(s"The type at index $index does not exist in the union type"))
           }
-        }
-        .flatMap { schema =>
-          decode(schema, buffer)
         }
 
     case ArraySchema(elementSchema) =>
@@ -194,10 +196,10 @@ object Binary {
       (0 until numberOfElement).toVector
         .map(_ => decode(elementSchema, buffer))
         .sequence
-        .map(AvroArray(elementSchema, _))
+        .map(xs=> Avro.array(elementSchema, xs:_*).asInstanceOf[Avro[T]])
 
     case MapSchema(valueSchema) =>
-      val mapBuilder = Map.newBuilder[String, Avro]
+      val mapBuilder = Map.newBuilder[String, Avro[Schema]]
 
       var numberOfElements = Varint.readSignedLong(buffer)
       while (numberOfElements > 0) {
@@ -211,7 +213,7 @@ object Binary {
         numberOfElements = Varint.readSignedLong(buffer)
       }
 
-      Right(AvroMap(valueSchema, mapBuilder.result()))
+      Right(Avro.map[Schema](valueSchema, mapBuilder.result().toList: _*).asInstanceOf[Avro[T]])
 
     case RecordSchema(fullName, fields) =>
       fields
@@ -221,13 +223,24 @@ object Binary {
         }
         .view
         .takeWhile(_.isRight)
-        .foldLeft(Either.right[ParsingFailure, Vector[(String, Avro)]](Vector.empty[(String, Avro)])) { (mxs, mx) =>
+        .foldLeft(Either.right[ParsingFailure, Vector[(String, Avro[Schema])]](Vector.empty[(String, Avro[Schema])])) { (mxs, mx) =>
           for {
             xs <- mxs
             x <- mx
           } yield xs :+ x
         }
-        .map(fields => Avro.record(fullName, fields: _*))
+        .map(fields => Avro.record(fullName, fields: _*).asInstanceOf[Avro[T]])
+
+    case EnumSchema(name, symbols) =>
+      Try(Varint.readSignedInt(buffer))
+        .toEither
+        .left
+        .map(e => ParsingFailure(e.getMessage))
+        .right
+        .flatMap {
+          case i if i < symbols.length => Right(AvroEnum(name, i, symbols).asInstanceOf[Avro[T]])
+          case i => Left(ParsingFailure(s"The symbol index $i is out of range ${symbols.mkString("[", ",", "]")}"))
+        }
 
     case _ => Left(ParsingFailure(s"Schema $schema is not supported"))
   }

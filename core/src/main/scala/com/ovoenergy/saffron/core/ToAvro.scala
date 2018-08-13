@@ -2,6 +2,7 @@ package com.ovoenergy.saffron.core
 
 trait ToAvro[T] {
 
-  def toAvro(t: T): Avro
+  // TODO Can we infer the schema Type? Maybe as a dependent type of schemaFor
+  def toAvro(t: T)(implicit schemaFor: SchemaFor[T]): Avro[_]
 
 }

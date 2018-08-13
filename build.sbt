@@ -28,21 +28,23 @@ lazy val commonSettings = Seq(
 
 lazy val `saffron` = (project in file("."))
   .enablePlugins(GitVersioning, GitBranchPrompt, BuildInfoPlugin)
-  .aggregate(core, binary)
+  .aggregate(core, binary, generic)
   .settings(
     name := "saffron",
     description := "native Avro serialization in scala",
-    homepage := Some(url("https://github.com/filosganga/saffron")),
-    organizationHomepage := Some(url("https://filippodeluca.com/")),
+    homepage := Some(url("https://github.com/ovotech/saffron")),
+    organizationHomepage := Some(url("https://www.ovoenergy.com/")),
     startYear := Some(2016),
     licenses := Seq(("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0"))),
-    scmInfo := Some(ScmInfo(url("https://github.com/filosganga/saffron"), "git@github.com:filosganga/saffron.git")),
-    bintrayOrganization := Some("filosganga"),
+    scmInfo := Some(ScmInfo(url("https://github.com/ovotech/saffron"), "git@github.com:ovotech/saffron.git")),
+    tutTargetDirectory := baseDirectory.value,
+    bintrayOrganization := Some("ovotech"),
     bintrayRepository := "maven",
     bintrayPackageLabels := Seq("avro", "serialization")
   )
 
 lazy val core: Project = (project in file("core"))
+  .dependsOn(coreTestkit % Test)
   .enablePlugins(GitVersioning, GitBranchPrompt, BuildInfoPlugin)
   .settings(commonSettings: _*)
   .settings(
@@ -78,4 +80,13 @@ lazy val binary: Project = (project in file("binary"))
       "org.typelevel" %% "cats-core" % "1.2.0",
       "org.apache.avro" % "avro" % "1.8.2" % Test
     )
+  )
+
+lazy val generic: Project = (project in file("generic"))
+  .dependsOn(core, coreTestkit % Test)
+  .enablePlugins(GitVersioning, GitBranchPrompt, BuildInfoPlugin)
+  .settings(commonSettings: _*)
+  .settings(name := "saffron-generic")
+  .settings(
+    libraryDependencies ++= Seq("com.chuusai" %% "shapeless" % "2.3.2")
   )
