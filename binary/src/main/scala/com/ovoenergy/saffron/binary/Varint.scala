@@ -1,6 +1,10 @@
 package com.ovoenergy.saffron.binary
 
-import java.nio.ByteBuffer
+import java.nio.{Buffer, ByteBuffer}
+
+import scodec.bits.{BitVector, ByteOrdering, ByteVector}
+import scodec.{Attempt, Codec, GenCodec, SizeBound}
+import scodec.codecs.{VarIntCodec, VarLongCodec}
 
 object Varint {
 
@@ -53,7 +57,7 @@ object Varint {
   def readSignedLong(src: ByteBuffer): Long = {
     val unsigned = readUnsignedLong(src)
     // undo even odd mapping
-    val tmp = (((unsigned << 63) >> 63) ^ unsigned) >> 1
+    val tmp = (((unsigned << 63) >> 63) ^ unsigned) >> 1 ^ (unsigned & (1L << 63))
     // restore sign
     tmp ^ (unsigned & (1L << 63))
   }
@@ -70,4 +74,64 @@ object Varint {
     } while ((read & 0x80L) != 0)
     v
   }
+}
+
+object Stuff {
+
+
+}
+
+private[binary] final class VarIntZigZagCodec extends Codec[Int] {
+
+  override def sizeBound =
+    SizeBound.bounded(1L, 32L)
+
+  override def encode(n: Int) = {
+    import RichStream._
+
+
+
+
+    /*
+
+        var x = v
+    while ((x & 0xFFFFFFFFFFFFFF80L) != 0L) {
+      dest put ((x & 0x7F) | 0x80).toByte
+      x >>>= 7
+    }
+    dest put (x & 0x7F).toByte
+
+     */
+
+//    Iterator.iterate(n)(_ >>> 7).scanLeft(0){(_, x) => ((x & 0x7F) | 0x80).toByte}
+
+//    Stream.iterate(n)(_ >>> 7).takeWhile(x => (x & 0xFFFFF80) != 0)
+
+
+
+    Attempt.successful(BitVector.fromInt((n << 1) ^ (n >> 31), size = 32, ByteOrdering.LittleEndian))
+  }
+
+  override def decode(buffer: BitVector) = {
+    ???
+  }
+
+  override def toString = "variable-length zig-zag integer"
+}
+
+
+private[binary] object RichStream {
+
+  implicit class RichStream(nested: Stream.type) {
+
+    def unfold[S, A](s: S)(f: S => Option[(S,A)]): Stream[A] = {
+      f(s) match {
+        case Some((nextS, a)) => Stream.cons(a, unfold(nextS)(f))
+        case None => Stream.empty
+      }
+    }
+
+
+  }
+
 }

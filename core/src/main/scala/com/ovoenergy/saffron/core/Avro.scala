@@ -70,8 +70,22 @@ case class AvroLong(value: Long) extends Avro[LongSchema.type] {
   override val schema: LongSchema.type = LongSchema
 }
 
-case class AvroBoolean(value: Boolean) extends Avro[BooleanSchema.type] {
+sealed trait AvroBoolean extends Avro[BooleanSchema.type] {
   override val schema: BooleanSchema.type = BooleanSchema
+
+  def value: Boolean = this match {
+    case AvroBoolean(value) => value
+  }
+}
+object AvroBoolean {
+  case object True extends AvroBoolean
+  case object False extends AvroBoolean
+
+  def apply(value: Boolean): AvroBoolean = if(value) True else False
+  def unapply(arg: AvroBoolean): Option[Boolean] = arg match {
+    case True => Some(true)
+    case False => Some(false)
+  }
 }
 
 case class AvroBytes(value: immutable.Seq[Byte]) extends Avro[BytesSchema.type] {
@@ -105,8 +119,7 @@ case class AvroRecord(name: String, fields: Map[String, Avro[Schema]]) extends A
 }
 
 // TODO make sure symbolIndex < schema.types.length at compile time
-case class AvroEnum(name: String, symbolIndex: Int, symbols: immutable.IndexedSeq[String]) extends Avro[EnumSchema] {
-  override val schema: EnumSchema = EnumSchema(name, symbols)
+case class AvroEnum(symbolIndex: Int, schema: EnumSchema) extends Avro[EnumSchema] {
   val symbol: String = schema.symbols(symbolIndex)
 }
 
@@ -156,7 +169,19 @@ object Avro {
   def string(value: String): Avro[StringSchema.type] = AvroString(value)
 
   def enum(fullName: String, symbol: String, symbols: String*): Avro[EnumSchema] =
-    AvroEnum(fullName, symbols.indexOf(symbol), symbols.toVector)
+    AvroEnum(symbols.indexOf(symbol), EnumSchema(fullName, symbols.toVector))
 
+
+}
+
+
+
+trait Avro[F[_]] {
+
+  def null: Avro[F]
+
+  def string(value: String): Avro[F]
+
+  def int(value: Int): Avro[F]
 
 }

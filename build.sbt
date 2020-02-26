@@ -5,10 +5,11 @@ import com.typesafe.sbt.git._
 
 lazy val commonSettings = Seq(
   organization := "com.github.filosganga",
-  scalaVersion := "2.12.6",
+  scalaVersion := "2.12.9",
+  resolvers += "Sonatype Public" at "https://oss.sonatype.org/content/groups/public/",
   libraryDependencies ++= Seq(
     "org.scalacheck" %% "scalacheck" % "1.14.0" % Test,
-    "org.scalatest" %% "scalatest" % "3.0.5" % Test
+    "org.scalatest" %% "scalatest" % "3.0.8" % Test
   ),
   git.remoteRepo := "origin",
   git.runner := ConsoleGitRunner,
@@ -44,49 +45,31 @@ lazy val `saffron` = (project in file("."))
   )
 
 lazy val core: Project = (project in file("core"))
-  .dependsOn(coreTestkit % Test)
   .enablePlugins(GitVersioning, GitBranchPrompt, BuildInfoPlugin)
   .settings(commonSettings: _*)
   .settings(
-    name := "saffron-core",
-    // Look at http://stackoverflow.com/a/26562928/462152
-    internalDependencyClasspath in Test ++= {
-      (exportedProducts in Compile in LocalProject("coreTestkit")).value
-    }
-  )
-
-lazy val coreTestkit: Project = (project in file("core-testkit"))
-  .enablePlugins(GitVersioning, GitBranchPrompt, BuildInfoPlugin)
-  .settings(commonSettings: _*)
-  .settings(
-    name := "saffron-core-testkit",
-    // Look at http://stackoverflow.com/a/26562928/462152
-    internalDependencyClasspath in Compile ++= {
-      (exportedProducts in Compile in LocalProject("core")).value
-    },
-    libraryDependencies ++= Seq(
-      "org.scalacheck" %% "scalacheck" % "1.14.0",
-      "org.scalatest" %% "scalatest" % "3.0.5"
-    )
+    name := "saffron-core"
   )
 
 lazy val binary: Project = (project in file("binary"))
-  .dependsOn(core, coreTestkit % Test)
+  .dependsOn(core % s"$Compile->$Compile;$Test->$Test")
   .enablePlugins(GitVersioning, GitBranchPrompt, BuildInfoPlugin)
   .settings(commonSettings: _*)
   .settings(name := "saffron-binary")
   .settings(
     libraryDependencies ++= Seq(
-      "org.typelevel" %% "cats-core" % "1.2.0",
-      "org.apache.avro" % "avro" % "1.8.2" % Test
+      "org.typelevel" %% "cats-core" % "1.6.1",
+      "org.scodec" %% "scodec-core" % "1.11.4",
+      "org.scodec" %% "scodec-bits" % "1.11.12",
+      "org.apache.avro" % "avro" % "1.9.0" % Test
     )
   )
 
 lazy val generic: Project = (project in file("generic"))
-  .dependsOn(core, coreTestkit % Test)
+  .dependsOn(core % s"$Compile->$Compile;$Test->$Test")
   .enablePlugins(GitVersioning, GitBranchPrompt, BuildInfoPlugin)
   .settings(commonSettings: _*)
   .settings(name := "saffron-generic")
   .settings(
-    libraryDependencies ++= Seq("com.chuusai" %% "shapeless" % "2.3.2")
+    libraryDependencies ++= Seq("com.chuusai" %% "shapeless" % "2.3.3")
   )

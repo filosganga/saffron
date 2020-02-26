@@ -1,7 +1,7 @@
 package com.ovoenergy.saffron.core
 
-import org.scalacheck.{Arbitrary, Gen}
 import com.ovoenergy.saffron.core.Schema._
+import org.scalacheck.{Arbitrary, Gen}
 
 trait CoreGenerators {
 
